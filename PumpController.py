@@ -52,9 +52,9 @@ class PumpController:
         self.isAvailable = False
         self.parent.statusQueue.put("Calibrating Pump")
     
-    def setPressure(self, i, p):
+    def setPressure(self, channelList, p):
         N = len(self.pressureIndices)
-        for chan in i:
+        for chan in channelList:
             if N >= chan: # Make sure enough pumps are available for each chip
                 msg = fgt_set_pressure(chan, p);
             else:

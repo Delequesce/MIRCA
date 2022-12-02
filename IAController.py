@@ -6,11 +6,14 @@ import os
 import matplotlib.pyplot as plt
 
 class IAController:
-    
-    #R_OFFSET = np.array([20.3, 20.3, 20.6, 20.3]);
-    R_OFFSET = np.array([0.03, 0.07, 0.03, 0.03, 0.04, 0.04, 0.21, 0.40, 0.52, 0.40, 0.37, 0.14]);
-    M_calib = np.array([145.70, 145.95, 145.70, 145.70, 145.45, 145.45, 146.18, 146.93, 147.43, 146.93, 146.93, 145.93]);
-    SAMPLESPERMEASUREMENT = 2**16
+
+    #R_OFFSET = np.array([0,0,0,0,0,0,0,0,0,0,0,0]);
+    #M_calib = np.array([1,1,1,1,1,1,1,1,1,1,1,1]);
+    R_OFFSET = np.array([1.1549, 1.2981, 1.4715, 1.1934, 1.0283, 0.7628,
+                         1.1864, 1.4598, 1.7311, 1.5055, 1.3891, 0.8961])
+    M_calib = np.array([94.9493, 95.2701, 95.5543, 95.1260, 94.7738, 94.3509,
+                        95.1100, 95.6686, 96.1677, 95.8655, 95.7560, 94.5343])
+    SAMPLESPERMEASUREMENT = 2**14 #(16384)
 
     def __init__(self, appController):
 
@@ -58,7 +61,7 @@ class IAController:
         pwr = ctx.getPowerSupply()
         dig = ctx.getDigital()
 
-        ain.setSampleRate(10e6)
+        ain.setSampleRate(15e6) # Samples one of every 5 DAC samples (could also decimate after)
         ain.setOversamplingRatio(1)
         ain.setRange(0, -5,5); ain.setRange(1, -5,5)
         ain.enableChannel(0, True); ain.enableChannel(1, True)
@@ -106,11 +109,12 @@ class IAController:
         aout.setSampleRate(0, Fs_out)
 
         # Create Buffer size of measurement window
-        w = 1e-3; #2e-3
-        buff_size = int(w * Fs_out) #1ms
-        t_out = np.linspace(0.0, w, buff_size)
-        Vinput = 500e-3
-        buffer = Vinput*np.sin(2*np.pi*activeTest.Fc*t_out) # 1V
+        buff_size = int(1e-3*Fs_out);
+        t_out = np.array(range(buff_size))/Fs_out
+        Vinput = 1000e-3
+        buffer = Vinput*np.sin(2*np.pi*activeTest.Fc*t_out) # 1V, 10kHz
+        #plt.plot(buffer)
+        #plt.show()
         aout.setCyclic(True)
         
         # Write Header Row
@@ -223,22 +227,26 @@ class IAController:
     def processData(self, activeTest, n, j):
         i = 0
         for chan in self.channelList:
-            vin = activeTest.rawDataMatrix[i][0];
-            vout = activeTest.rawDataMatrix[i][1];
+            vin = np.array(activeTest.rawDataMatrix[i][0]);
+            vout = np.array(activeTest.rawDataMatrix[i][1]);
+            
+            # Window for exactly 10 periods (based on 15MHz ain sampling)
+            vin = vin[0:15000]
+            vout = vout[0:15000]
             
             p = np.zeros(2, dtype=np.int16) # index for max of fft 
         
             FVin = np.abs(np.fft.rfft(vin)); FVout = np.abs(np.fft.rfft(vout))
-        
+            
             # Find index of FFT Max
             p[0] = 2+np.argmax(FVin[2:])
             p[1] = 2+np.argmax(FVout[2:])
+            #print(f"p = {p}")
         
             if (p[0] != p[1] or (p[0] == 0 and p[1] == 0)):
                 self.statusQueue.put("Error: FFT peaks misaligned")  
 
             # Calculate Output Parameters
-           #print(f"n: {n}, i: {i}")
             temp = activeTest.Z[n][i]
             if not np.isnan(temp):
                 activeTest.Z[n][i] = ((FVin[p[0]]/FVout[p[1]]*self.M_calib[chan]-self.R_OFFSET[chan]) + temp*j)/(j+1);

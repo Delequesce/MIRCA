@@ -28,7 +28,7 @@ class TestDialog:
         fr_pump = ttk.LabelFrame(tdWindow, text = "Pump Schedule \n(Time (min):Pressure(mBar))")
 
         # Set up run time entry and variable
-        str_runT = tk.StringVar(value = "3")
+        str_runT = tk.StringVar(value = "2")
         ent_runT = ttk.Entry(fr_params, textvariable = str_runT, width = 5)
         lbl_runT = ttk.Label(fr_params, text = "Run Time (min)")
 
@@ -40,7 +40,7 @@ class TestDialog:
         
         # Pump Command Window
         pumpText = tk.Text(fr_pump, width = 10, height = 5)
-        pumpText.insert(tk.END, "0:100")
+        pumpText.insert(tk.END, "0:200")
 
         # Create Buttons
         btn_start = ttk.Button(fr_button, text = "START TEST", style = "AccentButton",
@@ -108,8 +108,10 @@ class TestDialog:
         
         # Pump Command Window
         pumpText = tk.Text(fr_pump, width = 10, height = 5)
-        pumpText.insert(tk.END, "0:200")
-        pumpText.insert(tk.END, "\n2:100")
+        if phase == 'Perfusion':
+            pumpText.insert(tk.END, "0:200")
+        else:
+            pumpText.insert(tk.END, "0:100")
 
         # Create Buttons
         btn_start = ttk.Button(fr_button, text = "CONTINUE TEST", style = "AccentButton",

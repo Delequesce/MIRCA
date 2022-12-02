@@ -32,6 +32,7 @@ class ApplicationController:
         self.nextPhase = "Baseline"
         self.t_phaseStart = float('inf')
         self.t_p = []; self.p = []
+        self.bn = []
 
     # Assign Channels
     def assignChannels(self):
@@ -173,8 +174,12 @@ class ApplicationController:
                     self.statusQueue.put("Pump Ready")
                     
         # Check time for pump scheduling
-        if self.pollCounter % 5 < 1 and self.PumpController.allSet and len(self.t_p) > 0:
-            self.CheckAndSetPressure()
+        if self.pollCounter % 5 < 1 and self.PumpController.allSet:
+            if len(self.t_p) > 0:
+                self.CheckAndSetPressure()
+            elif len(self.bn) > 0:
+                self.bloodNeedlePressureChange()
+        
         
         # Polling repeats every 100ms
         self.pollTask = self.root.after(100, lambda: self.polling(pollState))
@@ -217,6 +222,11 @@ class ApplicationController:
             self.t_p.append(60*float(b[0])); self.p.append(float(b[1]));
             
         return
+    
+    # Sets pressure to 100mBar on a given pump when 
+    def bloodNeedlePressureChange(self):
+        self.PumpController.setPressure(self.bn, 100)
+        self.bn = []
     
     def CheckAndSetPressure(self):
         #print(f"Time: {time.perf_counter() - self.t_phaseStart}")

@@ -67,9 +67,11 @@ class MainGUI:
 
         fr_status = ttk.LabelFrame(fr_right, text = "Status Window")
         fr_button = tk.Frame(fr_right)
+        
+        fr_bloodNeedle = ttk.LabelFrame(fr_right, text = "Has blood reached the needle?")
 
         # Create Status Window
-        statusWindow = ScrolledText(fr_status, height = 13, width = 25, wrap = 'word', font=("Helvetica", 8))
+        statusWindow = ScrolledText(fr_status, height = 13, width = 30, wrap = 'word', font=("Helvetica", 8))
         statusWindow.bind("<Key>", lambda e: "break") # Make Read-only
 
         # Create Buttons
@@ -77,7 +79,17 @@ class MainGUI:
                                     command = self.startButtonCallback)
         btn_QC = ttk.Button(fr_button, text = "Quality Check", style = "AccentButton",
                                     command = self.qcCallback)
-
+        
+        # Blood needle check buttons
+        needleVars = []
+        for i in range(2):
+            tempVar =  tk.IntVar(value=0)
+            needleVars.append(tempVar)
+            ttk.Checkbutton(fr_bloodNeedle, text=f'Chip {i+1}',variable=tempVar,
+                 offvalue = 0, onvalue = 1, command = lambda j=i: self.bnToggle(j)).grid(row = 0, column = i,
+                padx = 1, pady = 1)
+        
+        
         ## Organize and Arrange Components
         fr_left.grid(row = 0, column = 0, padx = 2)
         fr_right.grid(row = 0, column = 1, padx = 2)
@@ -85,6 +97,7 @@ class MainGUI:
         # Right Side
         fr_button.grid(row = 0, column = 0, pady = 5)
         fr_status.grid(row = 1, column = 0, pady = 5)
+        fr_bloodNeedle.grid(row = 2, column = 0, pady = 5)
         btn_start.grid(row = 0, column = 0)
         btn_QC.grid(row = 1, column = 0)
         statusWindow.pack()
@@ -95,9 +108,9 @@ class MainGUI:
         plot1 = self.plot1; plot2 = self.plot2;
         plot1.cla(); plot2.cla()
         for i in range(N_channels1):
-            plot1.plot([], [], 'o-', label=self.labels[i], markersize=4)
+            plot1.plot([], [], 'o-', label=self.labels[i], markersize=2)
         for i in range(N_channels2):
-            plot2.plot([], [], 'o-', label=self.labels[i], markersize=4)
+            plot2.plot([], [], 'o-', label=self.labels[i], markersize=2)
         self.lines1 = plot1.get_lines(); self.lines2 = plot2.get_lines();
         plot1.set_xlabel("Time (min)"); plot2.set_xlabel("Time (min)"); 
         plot1.set_ylabel("Impedance (kΩ)"); plot2.set_ylabel("Impedance (kΩ)")
@@ -169,3 +182,6 @@ class MainGUI:
     def qcCallback(self):
         self.appController.openQCDialog()
         return
+    
+    def bnToggle(self, j):
+        self.appController.bn.append(j);
