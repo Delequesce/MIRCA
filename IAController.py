@@ -14,6 +14,9 @@ class IAController:
     M_calib = np.array([94.9493, 95.2701, 95.5543, 95.1260, 94.7738, 94.3509,
                         95.1100, 95.6686, 96.1677, 95.8655, 95.7560, 94.5343])
     SAMPLESPERMEASUREMENT = 2**14 #(16384)
+    WEIGHTS = np.array([0, 0.167, 0.188, 0.2, 0.215, 0.231])
+    REPSPERTP = 2; # Number of repeated measurements taken per time point
+    ENDTIME = 10; # Minutes after blood enters chip at which test ends
 
     def __init__(self, appController):
 
@@ -43,13 +46,16 @@ class IAController:
         self.testFinished = False
         self.QC = False
         self.testInitialized = False
-
+        #self.baselineCollect = [False, False]
+        
         # Times
         self.t_start = 0;
         self.t_s = 0;
 
         # Misc
+        self.baselineCount = [-1, -1];
         self.currCount = 0
+        self.currentPhase = "Baseline"
 
 
     # Connects to ADALM2000
@@ -79,9 +85,10 @@ class IAController:
         
         return ain, aout, dig, pwr
 
-    def initTest(self, runT, digLevels, channelList, saveDataFilePath = None):
+    # Runs once prior to baseline
+    def initTest(self, runT, digLevels, channelList, numChips, saveDataFilePath = None):
         self.statusQueue.put("Initializing Test...")
-
+        self.currentPhase = "Baseline"
         # Calibrate ADC and DAC
         print(f"ADALM Temperature: {self.ctx.calibrateFromContext()}")
 
@@ -89,9 +96,8 @@ class IAController:
         self.digLevels = digLevels
         self.channelList = channelList
         self.runT = runT
-        #self.N_channels = len(channelList)
-        self.N_channels = 12;
-        activeTest = Test(self, runT, self.N_channels)
+        self.N_channels = numChips*6;
+        activeTest = Test(self, runT, numChips)
 
         # Set file output params
         self.saveDataFilePath = saveDataFilePath
@@ -120,7 +126,7 @@ class IAController:
         # Write Header Row
         if saveDataFilePath:
             csv_writer = csv.writer(self.output_file, delimiter = ' ')
-            csv_writer.writerow(["Time", "Z"])
+            csv_writer.writerow(["Time", "Z", "REI"])
         
         # Store necessary local variables in object
         self.buffer = buffer
@@ -149,13 +155,14 @@ class IAController:
         if FSM_State == 1:
             # Determine if samples can be collected
             # If so, collect and store samples
-            if activeTest.delay - 2000 > 1e3*(t_m - self.t_start):
+            #if activeTest.delay - 2000 > 1e3*(t_m - self.t_start):
+            if self.currCount < self.REPSPERTP: 
                 self.activeTest.rawDataMatrix = self.collectData(activeTest)
                 # Save first collection time
                 activeTest.t[activeTest.collectedMeasurements] = round(self.t_start/60, 2)
                 # Proceed to data processing
                 self.FSM_State = 2
-                self.runTask = self.root.after(200, lambda: self.runTest(t0))
+                self.runTask = self.root.after(100, lambda: self.runTest(t0))
             else:
                 # Move on to storage
                 self.currCount = 0
@@ -167,7 +174,7 @@ class IAController:
             self.currCount +=1
             # Go back to collection state
             self.FSM_State = 1
-            self.runTask = self.root.after(200, lambda: self.runTest(t0))
+            self.runTask = self.root.after(100, lambda: self.runTest(t0))
 
         if FSM_State == 3:
             activeTest.collectedMeasurements += 1
@@ -185,7 +192,16 @@ class IAController:
                 # Pause test and open next dialog box
                 FSM_State = 5;
                 self.testPaused = True
-                if not self.QC:
+                
+                # Calculate Baseline for Baseline Test
+#                 if self.currentPhase == "Baseline":
+#                     n = activeTest.collectedMeasurements
+#                     for i in range(activeTest.numChips):
+#                         b = np.arange((i)*6, (i+1)*6)
+#                         Z_slice = activeTest.Z[n-4:n-1, b]
+#                         self.activeTest.baseline[b] = np.mean(Z_slice, axis = 0)
+#                     self.statusQueue.put(f"Baseline: {self.activeTest.baseline}")
+                if not self.QC and not self.currentPhase == "Perfusion":
                     self.appController.openTestDialog()
                     
         if FSM_State == 5:
@@ -197,11 +213,11 @@ class IAController:
             else:
                 if self.testPaused:
                     self.FSM_State = 5
-                    self.runTask = self.root.after(200, lambda: self.runTest(t0))
+                    self.runTask = self.root.after(100, lambda: self.runTest(t0))
                 else:
                     # Resume testing with appropriate timing
                     self.FSM_State = 0
-                    self.runTask = self.root.after(200, lambda: self.runTest(time.perf_counter() - self.t_s))
+                    self.runTask = self.root.after(100, lambda: self.runTest(time.perf_counter() - self.t_s))
             
             
     def collectData(self, activeTest):
@@ -259,21 +275,61 @@ class IAController:
         return
 
     def sendAndStore(self, activeTest, n):
-        #self.statusQueue.put(f"{activeTest.t[n-1]}s: {activeTest.Z[n-1]}kΩ")
 
-        # Add plot data to data queue
+        # Get data in convenient format
         xdata = np.single(activeTest.t[0:n])
         ZData = np.transpose(activeTest.Z)[:, 0:n].tolist()
+        
+        # Calculate baseline and find when blood enters chip
+        if self.currentPhase == "Perfusion":
+            for i in range(activeTest.numChips):
+                c = self.baselineCount[i]
+                print(c)
+                if not c > 0: # Starts at 1 when set
+                    continue
+                if not c > 10:
+                    self.baselineCount[i] +=1
+                    continue
+                b = np.arange((i)*6, (i+1)*6)
+                Z_slice = activeTest.Z[n-5:n-1, b]
+                bb = np.mean(Z_slice, axis = 0)
+                self.activeTest.baseline[b] = bb
+                self.statusQueue.put(f"Chip {i+1} Baseline: {bb}")
+                # Reset counter
+                self.baselineCount[i] = -1
+            # Check if blood has entered the chip
+            self.activeTest = self.hasBloodEnteredChip(activeTest, n)
+
+        
+        # Add plot data to data queue
         self.impedanceQueue.put((xdata, ZData))
-        #print(f"{xdata}: {ZData}")
 
         # Write data continuously to file
         output_file = self.output_file
         if output_file:
             output_file = open(output_file.name, 'a')
             csv_writer = csv.writer(output_file, delimiter = ' ')
-            csv_writer.writerow([activeTest.t[n-1], activeTest.Z[n-1]]);
+            csv_writer.writerow([activeTest.t[n-1], activeTest.Z[n-1], activeTest.REI[n-1]]);
             output_file.close()
+
+    def hasBloodEnteredChip(self, activeTest,n):
+        for i in range(activeTest.numChips):
+            b = np.arange(i*6, (i+1)*6)
+            REI_current = sum(activeTest.Z[n-1, b]/activeTest.baseline[b] * self.WEIGHTS);
+            activeTest.REI[n-1, i] = REI_current
+            if not activeTest.bloodHasEnteredChip[i]:
+                #REI_prev = activeTest.REI[n-2, i]
+                #REI_change = (REI_current-REI_prev)/REI_prev
+                REI_change = REI_current-1; # Deviation from baseline
+                if REI_change > 0.005: # 0.5% change
+                    activeTest.bloodHasEnteredChip[i] = True
+                    # Set end
+                    currTime = n/12
+                    activeTest.setLength(self.ENDTIME + currTime)
+                    self.statusQueue.put(f"Blood detected on chip {i+1}")
+    
+        # Update variable in Test Object
+        return activeTest
 
     def stopTest(self):
         self.testFinished = True
@@ -286,6 +342,11 @@ class IAController:
             self.aout.enableChannel(0, False)
             #print("Check good")
 
+    def printREI(self):
+        self.activeTest.trimData()
+        self.statusQueue.put(f" REI = {self.activeTest.REI[-1, :]}")
+        
+        
     def calculateStats(self):
         x1 = self.activeTest; t = x1.t;
         for i in range(x1.Z.shape[1]):
@@ -296,16 +357,8 @@ class IAController:
         return x1.ZMean
 
     def updateTest(self, T):
-        T = float(T)
-        Fm = self.activeTest.Fm;
-        addedN_meas = int(Fm*T*60)
-        self.activeTest.runT += T
-        self.activeTest.N_meas += addedN_meas
-        temp = np.empty((addedN_meas, self.activeTest.N_channels))
-        temp[:] = np.NaN
-        self.activeTest.Z = np.append(self.activeTest.Z, temp, axis = 0)
-        temp = np.zeros(addedN_meas)
-        self.activeTest.t = np.append(self.activeTest.t, temp, axis = 0)
+        self.currentPhase = "Perfusion"
+        self.activeTest.updateLength(T)
         
         return
     

@@ -68,8 +68,8 @@ class MainGUI:
         fr_status = ttk.LabelFrame(fr_right, text = "Status Window")
         fr_button = tk.Frame(fr_right)
         
-        fr_bloodNeedle = ttk.LabelFrame(fr_right, text = "Has blood reached the needle?")
-
+        fr_bloodNeedle = ttk.LabelFrame(fr_right, text="Has blood reached the needle?")
+        
         # Create Status Window
         statusWindow = ScrolledText(fr_status, height = 13, width = 30, wrap = 'word', font=("Helvetica", 8))
         statusWindow.bind("<Key>", lambda e: "break") # Make Read-only
@@ -80,15 +80,14 @@ class MainGUI:
         btn_QC = ttk.Button(fr_button, text = "Quality Check", style = "AccentButton",
                                     command = self.qcCallback)
         
-        # Blood needle check buttons
         needleVars = []
         for i in range(2):
-            tempVar =  tk.IntVar(value=0)
+            tempVar = tk.IntVar(value=0)
             needleVars.append(tempVar)
-            ttk.Checkbutton(fr_bloodNeedle, text=f'Chip {i+1}',variable=tempVar,
-                 offvalue = 0, onvalue = 1, command = lambda j=i: self.bnToggle(j)).grid(row = 0, column = i,
-                padx = 1, pady = 1)
-        
+            ttk.Checkbutton(fr_bloodNeedle, text = f'Chip {i+1}', variable=tempVar,
+                offvalue = 0, onvalue = 1, command = lambda j=i: self.bnToggle(j)).grid(
+                row = 0, column = i, padx = 1, pady = 1);
+                                                                
         
         ## Organize and Arrange Components
         fr_left.grid(row = 0, column = 0, padx = 2)
@@ -184,4 +183,6 @@ class MainGUI:
         return
     
     def bnToggle(self, j):
-        self.appController.bn.append(j);
+        print(j)
+        self.appController.bn.append(j)
+        self.appController.setBaselineCollect(j)

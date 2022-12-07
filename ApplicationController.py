@@ -70,22 +70,23 @@ class ApplicationController:
         self.IAProc.start()
 
     # Initiates a new test based on testDialog window
-    def newTest(self, run_T, chipVars, pumpText, saveDataFilePath = None):
+    def startBaseline(self, chipVars, saveDataFilePath = None):
         # Delete testDialog
         del self.testDialog
         # Parameters from testDialog
         self.nextPhase = "Perfusion"
-        self.run_T = run_T
         self.chipVars = chipVars
         self.saveDataFilePath = saveDataFilePath
         self.setChannels()
         
         # Set Pump Command Schedule
+        pumpText = "0:200"
+        run_T = 2;
         self.pumpTextDecode(pumpText)
        
         # Starts IA Controller run
         IAController = self.IAController
-        IAController.initTest(self.run_T, self.digLevels, self.channelList, saveDataFilePath)
+        IAController.initTest(run_T, self.digLevels, self.channelList, self.numChips, saveDataFilePath)
         self.gui.reinitPlot(6, 6)
 
         # Starts data collection
@@ -98,12 +99,13 @@ class ApplicationController:
         # IA Controller will initiate next test phase by calling continueTest()
         return
 
-    def continueTest(self, run_T, pumpText):
+    def continueTest(self):
+        # Parameters
+        pumpText = "0:200"
+        run_T = 15;
+        
         # Update nextPhase
-        if self.nextPhase == "Perfusion":
-            self.nextPhase = "Washout"
-        else:
-            self.nextPhase = "Completion"
+        self.nextPhase = "Completion"
 
         # Update activeTest with new runTime
         self.IAController.updateTest(run_T)
@@ -130,6 +132,7 @@ class ApplicationController:
             self.statusQueue.put("Test canceled by user")
         elif reason == "Completed":
             self.statusQueue.put("Test Complete")
+            self.IAController.printREI()
             #self.IAController.calculateStats()
         elif reason == "QC":
             # Determine if system is working properly
@@ -137,8 +140,6 @@ class ApplicationController:
                 self.statusQueue.put("Quality Check Complete. No issues detected.")
             else:
                 self.statusQueue.put("Quality Check Failed. Please check system and try again.")
-        else:
-            self.statusQueue.put("Error: Unknown Test Abort")
         
         # Let IAProc Finish its routine
         if self.IAProc:
@@ -188,18 +189,22 @@ class ApplicationController:
     def setChannels(self):
         digLevels = []
         channelList = []
+        numChips = 0;
         if self.chipVars[0].get() == 1:
             for chan in self.chip1Channels:
                 digLevels.append(chan)
             channelList += [0, 1, 2, 3, 4, 5]
+            numChips +=1
 
         if self.chipVars[1].get() == 1:
             for chan in self.chip2Channels:
                 digLevels.append(chan)
             channelList += [6, 7, 8, 9, 10, 11]
+            numChips +=1
 
         self.digLevels = digLevels
         self.channelList = channelList
+        self.numChips = numChips
         self.desiredPressureChannels = range(round(len(channelList)/6))
         return
     
@@ -235,6 +240,10 @@ class ApplicationController:
             msg = self.PumpController.setPressure(self.desiredPressureChannels, self.p[0])
             self.statusQueue.put(str(msg))
             self.t_p.pop(0); self.p.pop(0);
+            
+    def setBaselineCollect(self, j):
+        #self.baselineCollect[j] = True;
+        self.IAController.baselineCount[j] = 1;
 
     def on_close(self):
         if tk.messagebox.askokcancel("Quit", "Do you want to quit the program?"):

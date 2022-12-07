@@ -11,10 +11,10 @@ class TestDialog:
 
         self.saveDataFilePath = None
         if phase == "Baseline":
-            self.tdWindow, self.btn_start, self.ent_filePathIndicator, self.str_runT, \
-                           self.chipVars, self.pumpText = self.createStartWindow(self.root, phase)
+            self.tdWindow, self.btn_start, self.ent_filePathIndicator, \
+                           self.chipVars = self.createStartWindow(self.root, phase)
         else:
-            self.tdWindow, self.btn_start, self.str_runT, self.pumpText = self.createContinueWindow(self.root, phase)
+            self.tdWindow, self.btn_start = self.createContinueWindow(self.root, phase)
 
     # Creates Baseline window
     def createStartWindow(self, root, phase):
@@ -24,26 +24,20 @@ class TestDialog:
         # Create Frames
         fr_params = ttk.LabelFrame(tdWindow, text = "Test Parameters")
         fr_chipSelect = tk.Frame(fr_params)
+        fr_helpText = tk.Frame(tdWindow)
         fr_button = tk.Frame(tdWindow)
-        fr_pump = ttk.LabelFrame(tdWindow, text = "Pump Schedule \n(Time (min):Pressure(mBar))")
-
-        # Set up run time entry and variable
-        str_runT = tk.StringVar(value = "2")
-        ent_runT = ttk.Entry(fr_params, textvariable = str_runT, width = 5)
-        lbl_runT = ttk.Label(fr_params, text = "Run Time (min)")
-
+        
+        # Help Text
+        lbl_helpText = ttk.Label(fr_helpText, text = "Remember to unclamp the inlet tubing before beginning the test")
+        
         # Filepath
         lbl_filePathSelect = ttk.Label(fr_params, text="File Path")
         ent_filePathIndicator = ttk.Entry(fr_params, width = 30)
         btn_filePathSelect = ttk.Button(fr_params, text="Browse", style="AccentButton",
                                     command = self.filePathSelectCallback)
-        
-        # Pump Command Window
-        pumpText = tk.Text(fr_pump, width = 10, height = 5)
-        pumpText.insert(tk.END, "0:200")
 
         # Create Buttons
-        btn_start = ttk.Button(fr_button, text = "START TEST", style = "AccentButton",
+        btn_start = ttk.Button(fr_button, text = "START BASELINE", style = "AccentButton",
                                 command = self.startButtonCallback)
 
         btn_cancel = ttk.Button(fr_button, text = "CANCEL", style = "AccentButton",
@@ -60,20 +54,17 @@ class TestDialog:
         # Parameter Frame
         # Row 0
         fr_params.grid(row = 0, column = 0, pady = 5)
-        lbl_runT.grid(row = 0, column = 0)
-        ent_runT.grid(row = 0, column = 1)
         fr_chipSelect.grid(row = 0, column = 2, pady = 5)
+        lbl_helpText.grid(row = 0, column = 0)
         # Row 1
         lbl_filePathSelect.grid(row = 1, column = 0)
         ent_filePathIndicator.grid(row = 1, column = 1, columnspan = 2)
         btn_filePathSelect.grid(row = 1, column = 3)
+        # Row 2
+        fr_helpText.grid(row = 2, column  = 0, pady = 5)
 
-        # Pump Frame
-        fr_pump.grid(row = 0, column = 1, rowspan = 2)
-        pumpText.grid(row = 0, column = 0)
-
-        # Button Frame
-        fr_button.grid(row = 1, column = 0, pady = 5)
+        # Button Frame (Row 3)
+        fr_button.grid(row = 3, column = 0, pady = 5)
         btn_start.grid(row = 0, column = 0, padx = 2)
         btn_cancel.grid(row = 0, column = 1, padx = 2)
 
@@ -88,7 +79,7 @@ class TestDialog:
         y = (hs/2) - (h/2)
         tdWindow.geometry('+%d+%d' % (x, y))
         
-        return tdWindow, btn_start, ent_filePathIndicator, str_runT, chipVars, pumpText
+        return tdWindow, btn_start, ent_filePathIndicator, chipVars
     
     # Creates Perfusion window
     def createContinueWindow(self, root, phase):
@@ -97,36 +88,21 @@ class TestDialog:
 
         # Create Frames
         fr_params = ttk.LabelFrame(tdWindow, text = "Test Parameters")
-        fr_chipSelect = tk.Frame(tdWindow)
+        fr_helpText = tk.Frame(tdWindow)
         fr_button = tk.Frame(tdWindow)
-        fr_pump = ttk.LabelFrame(tdWindow, text = "Pump Schedule \n(Time(min):Pressure(mBar))")
-
-        # Set up run time entry and variable
-        str_runT = tk.StringVar(value = "20")
-        ent_runT = ttk.Entry(fr_params, textvariable = str_runT, width = 5)
-        lbl_runT = ttk.Label(fr_params, text = "Run Time (min)")
         
-        # Pump Command Window
-        pumpText = tk.Text(fr_pump, width = 10, height = 5)
-        if phase == 'Perfusion':
-            pumpText.insert(tk.END, "0:200")
-        else:
-            pumpText.insert(tk.END, "0:100")
-
+        # Help Text
+        lbl_helpText = ttk.Label(fr_helpText, text = "Remember to unclamp the inlet tubing before continuing the test")
+        lbl_helpText.grid(row = 0, column = 0)
+        
         # Create Buttons
-        btn_start = ttk.Button(fr_button, text = "CONTINUE TEST", style = "AccentButton",
+        btn_start = ttk.Button(fr_button, text = "START PERFUSION", style = "AccentButton",
                                 command = self.continueButtonCallback)
         btn_cancel = ttk.Button(fr_button, text = "CANCEL", style = "AccentButton",
                                     command = self.cancelButtonCallback)
 
-        # Organize and Arrange Components
-        fr_params.grid(row = 0, column = 0, pady = 5)
-        lbl_runT.grid(row = 0, column = 0)
-        ent_runT.grid(row = 0, column = 1)
-
-        # Pump Frame
-        fr_pump.grid(row = 0, column = 1, rowspan = 2)
-        pumpText.grid(row = 0, column = 0)
+        # Row 0
+        fr_helpText.grid(row = 0, column  = 0, pady = 5)
 
         fr_button.grid(row = 1, column = 0, pady = 5)
         btn_start.grid(row = 0, column = 0, padx = 2)
@@ -142,7 +118,7 @@ class TestDialog:
         y = (hs/2) - (h/2)
         tdWindow.geometry('+%d+%d' % (x, y))
         
-        return tdWindow, btn_start, str_runT, pumpText
+        return tdWindow, btn_start
 
     # Sets variables and flags in appController for proceeding with test
     def startButtonCallback(self):
@@ -152,24 +128,20 @@ class TestDialog:
             proceed = tk.messagebox.askyesno(title = "Warning", message = \
                         "No save path detected.\n Are you sure you wish to proceed?")
         if proceed:
-            temp = float(self.str_runT.get());
-            pText = self.pumpText.get('1.0', 'end-1c');
             # Close window
             self.tdWindow.destroy()
             self.tdWindow.update()
             # Sets run time, chipVars, and filepath
-            self.appController.newTest(temp, self.chipVars, pText, self.saveDataFilePath)
+            self.appController.startBaseline(self.chipVars, self.saveDataFilePath)
         else:
             return
 
     def continueButtonCallback(self):
-        temp = float(self.str_runT.get());
-        pText = self.pumpText.get('1.0', 'end-1c');
         # Close window
         self.tdWindow.destroy()
         self.tdWindow.update()
         
-        self.appController.continueTest(temp, pText)
+        self.appController.continueTest()
 
     def cancelButtonCallback(self):
         # Stop Test if active
