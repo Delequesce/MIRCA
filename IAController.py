@@ -46,6 +46,7 @@ class IAController:
         self.testFinished = False
         self.QC = False
         self.testInitialized = False
+        self.needlePassed = [False, False]
         #self.baselineCollect = [False, False]
         
         # Times
@@ -136,6 +137,10 @@ class IAController:
         activeTest.isInitialized = True
         self.testInitialized = True
         self.testFinished = False
+        self.needlePassed = [False, False]
+        
+        self.baselineCount = [-1, -1];
+        self.currCount = 0
         self.FSM_State = 0
         self.activeTest = activeTest
         self.statusQueue.put("Initialization Complete")
@@ -297,6 +302,7 @@ class IAController:
                 self.statusQueue.put(f"Chip {i+1} Baseline: {bb}")
                 # Reset counter
                 self.baselineCount[i] = -1
+                self.needlePassed[i] = True
             # Check if blood has entered the chip
             self.activeTest = self.hasBloodEnteredChip(activeTest, n)
 
@@ -314,6 +320,8 @@ class IAController:
 
     def hasBloodEnteredChip(self, activeTest,n):
         for i in range(activeTest.numChips):
+            if not self.needlePassed[i]:
+                continue
             b = np.arange(i*6, (i+1)*6)
             REI_current = sum(activeTest.Z[n-1, b]/activeTest.baseline[b] * self.WEIGHTS);
             activeTest.REI[n-1, i] = REI_current

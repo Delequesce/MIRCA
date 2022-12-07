@@ -25,7 +25,7 @@ class Test:
         self.Z = np.empty((self.N_meas, self.N_channels))
         self.Z[:] = np.NaN
         self.t = np.zeros(self.N_meas)
-        self.baseline = np.ones(self.N_channels)*200
+        self.baseline = np.ones(self.N_channels)*1e6
         self.REI = np.zeros((self.N_meas, self.numChips))
 
         self.ZMean = np.zeros(self.N_channels)

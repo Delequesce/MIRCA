@@ -81,7 +81,7 @@ class ApplicationController:
         
         # Set Pump Command Schedule
         pumpText = "0:200"
-        run_T = 2;
+        run_T = 0.25;
         self.pumpTextDecode(pumpText)
        
         # Starts IA Controller run
