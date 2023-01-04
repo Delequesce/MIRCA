@@ -15,10 +15,11 @@ class Test:
         self.Fm = 0.2
         self.runT = runT # In minutes
         self.delay = int(1000/self.Fm) # In seconds
-        self.setLength(runT)
+        self.setLength(runT, -1)
         self.collectedMeasurements = 0
         self.numChips = numChips
         self.N_channels = numChips*6;
+        self.tenMinuteIndex = np.zeros((numChips))
 
      # Test data output parameters
         self.rawDataMatrix = []
@@ -37,9 +38,13 @@ class Test:
         # Calibration Data
         self.M_calib = np.zeros((1, 12));
         
-    def setLength(self, T):
+    def setLength(self, T, i):
         self.runT = T;
-        self.N_meas = int(T*self.Fm*60) + 1
+        N_meas = int(T*self.Fm*60) + 1
+        self.N_meas = N_meas
+        if i < 0:
+            return
+        self.tenMinuteIndex[i] = N_meas
         
     def updateLength(self, addT):
         self.runT += addT;

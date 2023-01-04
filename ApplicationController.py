@@ -7,6 +7,9 @@ import time
 
 class ApplicationController:
     
+    BASELINETIME = 2;
+    PERFUSIONTIME = 15;
+    
     def __init__(self, root):
 
         # Create queues 
@@ -29,7 +32,8 @@ class ApplicationController:
         self.pollTask = None
         self.pollCounter = 0;
 
-        self.nextPhase = "Baseline"
+        self.nextPhase = "None"
+        self.currentPhase = "None"
         self.t_phaseStart = float('inf')
         self.t_p = []; self.p = []
         self.bn = []
@@ -57,15 +61,16 @@ class ApplicationController:
         return chip1Channels, chip2Channels
     
     def newQC(self, chipVars):
+        self.currentPhase = "QC"
         # Set Channel Information
         self.chipVars = chipVars
         self.setChannels()
         # Starts IA Controller run
         IAController = self.IAController
-        IAController.initTest(0.5, self.digLevels, self.channelList)
+        IAController.initTest(0.5, self.digLevels, self.channelList, self.numChips)
         self.gui.reinitPlot(6, 6)
         # Starts data collection
-        self.IAController.QC = True # Tells controller qulaity check is running
+        self.IAController.currentPhase = "QC" # Tells controller qulaity check is running
         self.IAProc = threading.Thread(target=IAController.runTest, args=[time.perf_counter()])
         self.IAProc.start()
 
@@ -74,6 +79,7 @@ class ApplicationController:
         # Delete testDialog
         del self.testDialog
         # Parameters from testDialog
+        self.currentPhase = "Baseline"
         self.nextPhase = "Perfusion"
         self.chipVars = chipVars
         self.saveDataFilePath = saveDataFilePath
@@ -81,7 +87,7 @@ class ApplicationController:
         
         # Set Pump Command Schedule
         pumpText = "0:200"
-        run_T = 0.25;
+        run_T = self.BASELINETIME;
         self.pumpTextDecode(pumpText)
        
         # Starts IA Controller run
@@ -102,7 +108,7 @@ class ApplicationController:
     def continueTest(self):
         # Parameters
         pumpText = "0:200"
-        run_T = 15;
+        run_T = self.PERFUSIONTIME;
         
         # Update nextPhase
         self.nextPhase = "Completion"
@@ -117,13 +123,14 @@ class ApplicationController:
 
         # Release break on IAController
         self.IAController.testPaused = False
+        self.currentPhase = "Perfusion"
         return
 
     def stopTest(self, reason = None):
         self.gui.btn_start['text'] = "New Test"
         self.isFinished = True
-        self.nextPhase = "Baseline"
-        # self.PumpController.setPressure(0, 0); # Comment out for microscope imaging
+        self.nextPhase = "None"
+        #self.PumpController.setPressure(0, 0); # Comment out for microscope imaging
         self.IAController.stopTest()
         # Log appropriate status to window
         if reason == "Connection":
@@ -181,6 +188,17 @@ class ApplicationController:
             elif len(self.bn) > 0:
                 self.bloodNeedlePressureChange()
         
+        # Check to see if IAController is paused 
+        if self.IAController.testPauseFlag:
+            self.IAController.testPauseFlag = False
+            phase = self.currentPhase
+            if phase == "Baseline":
+                self.currentPhase = "Perfusion"
+                self.openTestDialog()
+            elif phase == "Perfusion":
+                self.stopTest("Completed")
+            elif phase == "QC":
+                self.stopTest("QC")
         
         # Polling repeats every 100ms
         self.pollTask = self.root.after(100, lambda: self.polling(pollState))
@@ -209,12 +227,10 @@ class ApplicationController:
         return
     
     # Opens new testDialog and returns to main loop to wait for callback
-    def openTestDialog(self):
-        if not self.nextPhase == "Completion":
-            self.testDialog = TestDialog(self, self.nextPhase)
-        else:
-            self.stopTest()
-        return
+    def openTestDialog(self, phase = None):
+        if phase:
+            self.nextPhase = phase
+        self.testDialog = TestDialog(self, self.nextPhase)
 
     def openQCDialog(self):
         self.testDialog = QCDialog(self)

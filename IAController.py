@@ -43,10 +43,9 @@ class IAController:
         # Flags
         self.runTask = None
         self.testPaused = False
-        self.testFinished = False
-        self.QC = False
         self.testInitialized = False
         self.needlePassed = [False, False]
+        self.testPauseFlag = False
         #self.baselineCollect = [False, False]
         
         # Times
@@ -136,8 +135,8 @@ class IAController:
         aout.push(0, buffer)
         activeTest.isInitialized = True
         self.testInitialized = True
-        self.testFinished = False
         self.needlePassed = [False, False]
+        self.testPauseFlag = False
         
         self.baselineCount = [-1, -1];
         self.currCount = 0
@@ -193,10 +192,11 @@ class IAController:
                 self.runTask = self.root.after(t_adj, lambda: self.runTest(t0))
             else:
                 # Get Stop time
-                self.t_s = t_m;
+                self.t_s = t_m
                 # Pause test and open next dialog box
-                FSM_State = 5;
+                FSM_State = 5 # Go to holding state
                 self.testPaused = True
+                self.testPauseFlag = True
                 
                 # Calculate Baseline for Baseline Test
 #                 if self.currentPhase == "Baseline":
@@ -206,23 +206,17 @@ class IAController:
 #                         Z_slice = activeTest.Z[n-4:n-1, b]
 #                         self.activeTest.baseline[b] = np.mean(Z_slice, axis = 0)
 #                     self.statusQueue.put(f"Baseline: {self.activeTest.baseline}")
-                if not self.QC and not self.currentPhase == "Perfusion":
-                    self.appController.openTestDialog()
                     
         if FSM_State == 5:
             # Maintain holding pattern (pause recording) until appropriate callback changes pause boolean
-            if self.testFinished:
-                self.appController.stopTest("Completed")
-            elif self.QC:
-                self.appController.stopTest("QC")
+            # Check if test has finished
+            if self.testPaused:
+                self.FSM_State = 5
+                self.runTask = self.root.after(100, lambda: self.runTest(t0))
             else:
-                if self.testPaused:
-                    self.FSM_State = 5
-                    self.runTask = self.root.after(100, lambda: self.runTest(t0))
-                else:
-                    # Resume testing with appropriate timing
-                    self.FSM_State = 0
-                    self.runTask = self.root.after(100, lambda: self.runTest(time.perf_counter() - self.t_s))
+                # Resume testing with appropriate timing
+                self.FSM_State = 0
+                self.runTask = self.root.after(100, lambda: self.runTest(time.perf_counter() - self.t_s))
             
             
     def collectData(self, activeTest):
@@ -289,7 +283,6 @@ class IAController:
         if self.currentPhase == "Perfusion":
             for i in range(activeTest.numChips):
                 c = self.baselineCount[i]
-                print(c)
                 if not c > 0: # Starts at 1 when set
                     continue
                 if not c > 10:
@@ -329,18 +322,17 @@ class IAController:
                 #REI_prev = activeTest.REI[n-2, i]
                 #REI_change = (REI_current-REI_prev)/REI_prev
                 REI_change = REI_current-1; # Deviation from baseline
-                if REI_change > 0.005: # 0.5% change
+                if REI_change > 0.01: # 0.5% change
                     activeTest.bloodHasEnteredChip[i] = True
                     # Set end
                     currTime = n/12
-                    activeTest.setLength(self.ENDTIME + currTime)
+                    activeTest.setLength(self.ENDTIME + currTime, i)
                     self.statusQueue.put(f"Blood detected on chip {i+1}")
     
         # Update variable in Test Object
         return activeTest
 
     def stopTest(self):
-        self.testFinished = True
         self.FSM_State = 6 # Non-existant state that stops machine
         #print("IA Test Stopping")
         
@@ -352,7 +344,13 @@ class IAController:
 
     def printREI(self):
         self.activeTest.trimData()
-        self.statusQueue.put(f" REI = {self.activeTest.REI[-1, :]}")
+        N = self.activeTest.tenMinuteIndex;
+        i = 0;
+        for x in N:
+            if x > -1:
+                x_r = int(x-1)
+                self.statusQueue.put(f"Chip {i} REI = {self.activeTest.REI[x_r, i]}")
+                i+=1
         
         
     def calculateStats(self):
@@ -371,7 +369,7 @@ class IAController:
         return
     
     def finishQC(self):
-        self.QC = False # Turns off flag for next test
+        self.currentPhase = "None"
         ZMean = self.calculateStats()
         standards = np.array([33.95, 51.02, 80.30, 95.10, 123.49, 139.32, 33.94, 50.92, 80.19, 94.95, 123.5, 139.19])
         # Check rms channel error
@@ -384,7 +382,7 @@ class IAController:
                 j+=1
             i+=1
         rmsd = np.sqrt(rmsd/j)
-        print(f"RMSD = {np.round(rmsd, 2)}kOhms")
+        self.statusQueue.put(f"RMSD = {np.round(rmsd, 2)}kOhms")
         return (rmsd < 3)
 
 

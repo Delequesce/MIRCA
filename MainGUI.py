@@ -172,7 +172,7 @@ class MainGUI:
     def startButtonCallback(self):
         if self.btn_start['text'] == 'New Test':
             self.btn_start['text'] = "STOP"
-            self.appController.openTestDialog()
+            self.appController.openTestDialog("Baseline")
         else:
             print("callback")
             self.btn_start['text'] = "New Test"
